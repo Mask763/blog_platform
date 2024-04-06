@@ -151,3 +151,5 @@ EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
 EMAIL_FILE_PATH = BASE_DIR / 'sent_emails'
 
 CSRF_FAILURE_VIEW = 'pages.views.csrf_failure'
+
+MAX_POSTS: int = 10

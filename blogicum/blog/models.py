@@ -94,10 +94,6 @@ class Post(AbstractModel):
     def __str__(self) -> str:
         return self.title
 
-    @property
-    def comment_count(self):
-        return self.comments.count()
-
 
 class Comment(models.Model):
     text = models.TextField('Комментарий')
@@ -105,15 +101,14 @@ class Comment(models.Model):
     post = models.ForeignKey(
         Post,
         on_delete=models.CASCADE,
-        related_name='comments',
         verbose_name='Публикация'
     )
     author = models.ForeignKey(
         User,
-        on_delete=models.CASCADE,
-        related_name='comments')
+        on_delete=models.CASCADE)
 
     class Meta:
         verbose_name = 'комментарий'
         verbose_name_plural = 'Комментарии'
         ordering = ('created_at',)
+        default_related_name = 'comments'

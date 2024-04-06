@@ -1,5 +1,5 @@
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 
 from .forms import PostCreateForm, CommentForm
@@ -11,7 +11,7 @@ class OnlyOwnerMixin(UserPassesTestMixin):
         return self.get_object().author == self.request.user
 
 
-class PostMixin(OnlyOwnerMixin, LoginRequiredMixin):
+class PostUpdateAndDeleteMixin(OnlyOwnerMixin, LoginRequiredMixin):
     model = Post
     form_class = PostCreateForm
     pk_url_kwarg = 'post_id'
@@ -19,7 +19,7 @@ class PostMixin(OnlyOwnerMixin, LoginRequiredMixin):
 
     def handle_no_permission(self):
         return redirect(reverse('blog:post_detail',
-                                kwargs={'pk': self.get_object().pk}))
+                                kwargs={'post_id': self.get_object().pk}))
 
     def get_success_url(self) -> str:
         return reverse_lazy('blog:profile',
@@ -31,10 +31,19 @@ class PostMixin(OnlyOwnerMixin, LoginRequiredMixin):
         return context
 
 
-class CommentMixin(LoginRequiredMixin):
+class BaseCommentMixin(LoginRequiredMixin):
     model = Comment
     form_class = CommentForm
 
     def get_success_url(self):
         return reverse_lazy('blog:post_detail',
-                            kwargs={'pk': self.object.post.pk})
+                            kwargs={'post_id': self.object.post.pk})
+
+
+class CommentUpdateAndDeleteMixin:
+    template_name = 'blog/comment.html'
+
+    def get_object(self, queryset=None):
+        post_id = self.kwargs['post_id']
+        comment_id = self.kwargs['comment_id']
+        return get_object_or_404(Comment, pk=comment_id, post_id=post_id)

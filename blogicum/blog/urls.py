@@ -1,41 +1,47 @@
-from django.urls import path
+from django.urls import path, include
 
 from . import views
 
 app_name = 'blog'
 
-urlpatterns = [
-    path('',
-         views.PostListView.as_view(),
-         name='index'),
-    path('posts/<int:pk>/',
+post_urls = [
+    path('<int:post_id>/',
          views.PostDetailView.as_view(),
          name='post_detail'),
-    path('posts/create/',
+    path('create/',
          views.PostCreateView.as_view(),
          name='create_post'),
-    path('posts/<int:post_id>/edit/',
+    path('<int:post_id>/edit/',
          views.PostUpdateView.as_view(),
          name='edit_post'),
-    path('posts/<int:post_id>/delete/',
+    path('<int:post_id>/delete/',
          views.PostDeleteView.as_view(),
          name='delete_post'),
+    path('<int:post_id>/comment/',
+         views.CommentCreateView.as_view(),
+         name='add_comment'),
+    path('<int:post_id>/edit_comment/<int:comment_id>/',
+         views.CommentUpdateView.as_view(),
+         name='edit_comment'),
+    path('<int:post_id>/delete_comment/<int:comment_id>/',
+         views.CommentDeleteView.as_view(),
+         name='delete_comment'),
+]
+
+profile_urls = [
+    path('edit/',
+         views.UserUpdateView.as_view(),
+         name='edit_profile'),
+    path('<str:username>/',
+         views.UserDetailView.as_view(),
+         name='profile'),
+]
+
+urlpatterns = [
+    path('', views.PostListView.as_view(), name='index'),
+    path('posts/', include(post_urls)),
     path('category/<slug:slug>/',
          views.CategoryPostsListView.as_view(),
          name='category_posts'),
-    path('posts/<int:post_id>/comment/',
-         views.CommentCreateView.as_view(),
-         name='add_comment'),
-    path('posts/<int:post_id>/edit_comment/<int:comment_id>/',
-         views.CommentUpdateView.as_view(),
-         name='edit_comment'),
-    path('posts/<int:post_id>/delete_comment/<int:comment_id>/',
-         views.CommentDeleteView.as_view(),
-         name='delete_comment'),
-    path('profile/edit_profile/',
-         views.UserUpdateView.as_view(),
-         name='edit_profile'),
-    path('profile/<slug:username>/',
-         views.UserDetailView.as_view(),
-         name='profile'),
+    path('profile/', include(profile_urls)),
 ]

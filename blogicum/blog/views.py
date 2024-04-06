@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
 from django.http import Http404
@@ -8,13 +9,14 @@ from django.utils import timezone
 from django.views.generic import (
     CreateView, DeleteView, DetailView, ListView, UpdateView)
 
-from blog.models import Category, Post, Comment
+from blog.models import Category, Post
+from blogicum.settings import MAX_POSTS
 from .forms import PostCreateForm, CommentForm
-from .mixins import CommentMixin, OnlyOwnerMixin, PostMixin
+from .mixins import (
+    BaseCommentMixin, CommentUpdateAndDeleteMixin,
+    OnlyOwnerMixin, PostUpdateAndDeleteMixin)
 from .utils import get_post_list
 
-
-MAX_POSTS: int = 10
 
 User = get_user_model()
 
@@ -33,12 +35,13 @@ class PostCreateView(LoginRequiredMixin, CreateView):
                             kwargs={'username': self.request.user.username})
 
 
-class PostUpdateView(PostMixin, UpdateView):
+class PostUpdateView(PostUpdateAndDeleteMixin, UpdateView):
     def get_success_url(self) -> str:
-        return reverse_lazy('blog:post_detail', kwargs={'pk': self.object.pk})
+        return reverse_lazy('blog:post_detail',
+                            kwargs={'post_id': self.object.pk})
 
 
-class PostDeleteView(PostMixin, DeleteView):
+class PostDeleteView(PostUpdateAndDeleteMixin, DeleteView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['form'] = PostCreateForm(instance=self.object)
@@ -46,15 +49,15 @@ class PostDeleteView(PostMixin, DeleteView):
 
 
 class PostListView(ListView):
-    model = Post
     template_name = 'blog/index.html'
     paginate_by = MAX_POSTS
-    queryset = get_post_list()
+    queryset = get_post_list(filter=True, annotation=True)
 
 
 class PostDetailView(DetailView):
     model = Post
     template_name = 'blog/detail.html'
+    pk_url_kwarg = 'post_id'
 
     def get_object(self, queryset=None):
         obj = super().get_object(queryset)
@@ -71,68 +74,68 @@ class PostDetailView(DetailView):
         return context
 
 
-class CommentCreateView(CommentMixin, CreateView):
+class CommentCreateView(BaseCommentMixin, CreateView):
     def form_valid(self, form):
         form.instance.author = self.request.user
         form.instance.post = get_object_or_404(Post, pk=self.kwargs['post_id'])
         return super().form_valid(form)
 
 
-class CommentUpdateView(CommentMixin, OnlyOwnerMixin, UpdateView):
-    template_name = 'blog/comment.html'
-
-    def get_object(self, queryset=None):
-        post_id = self.kwargs['post_id']
-        comment_id = self.kwargs['comment_id']
-        return get_object_or_404(Comment, pk=comment_id, post_id=post_id)
+class CommentUpdateView(BaseCommentMixin,
+                        CommentUpdateAndDeleteMixin,
+                        OnlyOwnerMixin,
+                        UpdateView):
+    pass
 
 
-class CommentDeleteView(CommentMixin, OnlyOwnerMixin, DeleteView):
-    template_name = 'blog/comment.html'
-
-    def get_object(self, queryset=None):
-        post_id = self.kwargs['post_id']
-        comment_id = self.kwargs['comment_id']
-        return get_object_or_404(Comment, pk=comment_id, post_id=post_id)
+class CommentDeleteView(BaseCommentMixin,
+                        CommentUpdateAndDeleteMixin,
+                        OnlyOwnerMixin,
+                        DeleteView):
+    pass
 
 
 class CategoryPostsListView(ListView):
-    model = Post
     template_name = 'blog/category.html'
     paginate_by = MAX_POSTS
 
+    def get_category(self):
+        return get_object_or_404(
+            Category.objects.filter(is_published=True),
+            slug=self.kwargs['slug']
+        )
+
     def get_queryset(self):
-        return get_post_list().filter(category__slug=self.kwargs['slug'])
+        return get_post_list(self.get_category().posts, True, True)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['category'] = get_object_or_404(
-            Category.objects.values('title', 'description').filter(
-                is_published=True
-            ), slug=self.kwargs['slug'])
+        context['category'] = self.get_category()
         return context
 
 
-class UserDetailView(DetailView):
-    model = User
+class CreateUser(CreateView):
+    template_name = 'registration/registration_form.html'
+    form_class = UserCreationForm
+    success_url = reverse_lazy('blog:index')
+
+
+class UserDetailView(ListView):
     template_name = 'blog/profile.html'
-    slug_field = 'username'
-    slug_url_kwarg = 'username'
-    context_object_name = 'profile'
+    paginate_by = MAX_POSTS
+
+    def get_user(self):
+        return get_object_or_404(User, username=self.kwargs['username'])
+
+    def get_queryset(self):
+        user = self.get_user()
+        if self.request.user == user:
+            return get_post_list(user.posts, annotation=True)
+        return get_post_list(user.posts, True, True)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        users_posts = Post.objects.filter(author=self.object)
-
-        if self.request.user == self.object:
-            users_posts = Post.objects.filter(author=self.object)
-        else:
-            users_posts = get_post_list().filter(author=self.object)
-
-        paginator = Paginator(users_posts, MAX_POSTS)
-        page_number = self.request.GET.get('page')
-        page_obj = paginator.get_page(page_number)
-        context['page_obj'] = page_obj
+        context['profile'] = self.get_user()
         return context
 
 
