@@ -59,9 +59,6 @@ pip install -r requirements.txt
 cd blogicum/
 ```
 ```
-python manage.py collectstatic
-```
-```
 python manage.py migrate
 ```
 
